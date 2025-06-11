@@ -8,16 +8,7 @@ import { Dispatch, SetStateAction, useState } from 'react'
 // AxiosError の型定義は axios パッケージの型定義に含まれているため、
 // 明示的にインポートする必要はありません。
 // 必要であれば、以下のように定義することもできますが、通常は不要です。
-// interface AxiosError {
-//   response?: {
-//     data: any;
-//     status: number;
-//     headers: any;
-//   };
-//   message: string;
-//   // 他のAxiosErrorプロパティ...
-// }
-
+// import { AxiosError } from 'axios'; // もし axios のバージョンが古くてimportが必要な場合はここを残す
 
 type Props = {
   cart: CartItem[]
@@ -62,9 +53,11 @@ export default function PurchaseButton({ cart, setCart }: Props) {
       setCart([])
     } catch (error: unknown) { // any を unknown に変更
       // エラーが axios のエラーかどうかを判断
-      // error.response は AxiosError のプロパティなので、型ガードを使用
-      if (typeof error === 'object' && error !== null && 'response' in error) {
-        console.error('購入処理エラー:', (error as any).response?.data || (error as any).message || error);
+      // AxiosError の型ガードを使って、型安全にアクセスする
+      if (typeof error === 'object' && error !== null && 'response' in error && 'isAxiosError' in error && (error as any).isAxiosError) {
+        // AxiosError の場合
+        const axiosError = error as any; // ここで any を使うのは、エラー処理内で一時的に許容
+        console.error('購入処理エラー:', axiosError.response?.data || axiosError.message || axiosError);
       } else if (error instanceof Error) { // 通常のJavaScriptエラーの場合
         console.error('購入処理エラー:', error.message);
       } else { // その他の不明なエラーの場合
