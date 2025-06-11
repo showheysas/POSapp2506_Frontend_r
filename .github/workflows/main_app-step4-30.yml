@@ -31,10 +31,9 @@ jobs:
           npm run test --if-present # テストはそのまま残す
 
       - name: Zip artifact for deployment # .next/standalone ディレクトリの中身を圧縮
-        # standalone 出力のルートディレクトリに移動してからzipを作成
+        # ここを修正: ./.next/standalone ディレクトリ全体を、そのパスを含めて圧縮します
         run: |
-          cd ./.next/standalone
-          zip -r ../../release.zip ./*
+          zip -r release.zip ./.next/standalone # 修正箇所
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
