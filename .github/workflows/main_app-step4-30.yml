@@ -1,45 +1,15 @@
-# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
-# More GitHub Actions for Azure: https://github.com/Azure/actions
+# .github/workflows/main.yml
+# ... (build job はそのまま)
 
-name: Build and deploy Node.js app to Azure Web App - app-step4-30
-
-on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read #This is required for actions/checkout
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Node.js version
-        uses: actions/setup-node@v4 # v3 から v4 に更新
-        with:
-          node-version: '20.x'
-
-      - name: npm install, build, and test
+      - name: Zip artifact for deployment # .next/standalone ディレクトリ全体を圧縮
         run: |
-          npm install --force # --force を追加
-          # NEXT_PUBLIC_API_URL をシークレットから渡して Next.js アプリをビルド
-          NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }} npm run build
-          npm run test --if-present # テストはそのまま残す
-
-      - name: Zip artifact for deployment # .next/standalone ディレクトリの中身を圧縮
-        # ここを修正: ./.next/standalone ディレクトリ全体を、そのパスを含めて圧縮します
-        run: |
-          zip -r release.zip ./.next/standalone # 修正箇所
+          zip -r release.zip ./.next/standalone
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
           name: node-app
-          path: release.zip # 生成されたzipファイルをアップロード
+          path: release.zip
 
   deploy:
     runs-on: ubuntu-latest
@@ -54,14 +24,16 @@ jobs:
         with:
           name: node-app
 
-      - name: Unzip artifact for deployment # ダウンロードしたzipを解凍
-        run: unzip release.zip
-      
+      - name: Unzip artifact for deployment
+        run: unzip release.zip # これにより、/home/site/wwwroot/ に .next/standalone が展開される
+
       - name: 'Deploy to Azure Web App'
         id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'app-step4-30'
           slot-name: 'Production'
-          package: . # 解凍されたコンテンツが現在のディレクトリにあるため . を指定
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }} # シークレット名を変更
+          package: . # .next/standalone が /home/site/wwwroot/ に展開されることを想定
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          # ここが重要: スタートアップコマンドを設定
+          startup-command: "node ./.next/standalone/server.js" # Next.js standalone の起動コマンド
