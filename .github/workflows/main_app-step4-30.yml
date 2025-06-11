@@ -1,5 +1,8 @@
 # .github/workflows/main.yml
-# ... (build job はそのまま)
+# ... (jobs.build.steps まで)
+
+    steps:
+      # ... (npm install, build, and test ステップまで)
 
       - name: Zip artifact for deployment # .next/standalone ディレクトリ全体を圧縮
         run: |
@@ -12,12 +15,7 @@
           path: release.zip
 
   deploy:
-    runs-on: ubuntu-latest
-    needs: build
-    environment:
-      name: 'Production'
-      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
-    
+    # ... (deploy job の Download artifact, Unzip まで)
     steps:
       - name: Download artifact from build job
         uses: actions/download-artifact@v4
@@ -25,15 +23,14 @@
           name: node-app
 
       - name: Unzip artifact for deployment
-        run: unzip release.zip # これにより、/home/site/wwwroot/ に .next/standalone が展開される
-
+        run: unzip release.zip
+      
       - name: 'Deploy to Azure Web App'
         id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'app-step4-30'
           slot-name: 'Production'
-          package: . # .next/standalone が /home/site/wwwroot/ に展開されることを想定
+          package: .
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          # ここが重要: スタートアップコマンドを設定
           startup-command: "node ./.next/standalone/server.js" # Next.js standalone の起動コマンド
