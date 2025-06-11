@@ -4,26 +4,43 @@ import { CartItem } from '@/types'
 import api from '@/lib/api'
 import { Dispatch, SetStateAction, useState } from 'react'
 
-// AxiosError の型定義を、必要なプロパティだけを持つように定義します。
-// これは @typescript-eslint/no-explicit-any を回避しつつ、Axiosのエラー構造にアクセスするためです。
+// FastAPIのエラーレスポンスの具体的な型を定義
+// 通常、FastAPIは Validation Error の場合に { detail: string | array } を返すことが多いです。
+// シンプルなエラーメッセージの場合は { message: string } を返すこともあります。
+type FastAPIErrorDetail = {
+  detail: string | Array<{ loc: string[]; msg: string; type: string }>;
+};
+
+type FastAPIErrorMessage = {
+  message: string;
+};
+
+// Axiosのエラーレスポンスのdata部分の型
+type AxiosErrorData = string | FastAPIErrorDetail | FastAPIErrorMessage;
+
+// AxiosErrorResponse の data プロパティの型を修正
 interface AxiosErrorResponse {
-  data?: {
-    // FastAPIのエラーレスポンスの具体的な構造に合わせて調整してください
-    // 例えば、{ detail: string } のような形式かもしれません
-    message?: string;
-    detail?: string;
-    // ...その他、エラーレスポンスに含まれる可能性のあるプロパティ
-  };
+  data?: AxiosErrorData; // string, FastAPIErrorDetail, FastAPIErrorMessage のいずれかを許容
   status?: number;
+  headers?: Record<string, string>;
   // ...その他、レスポンスオブジェクトに含まれる可能性のあるプロパティ
 }
+
+// AxiosRequestConfig の型定義の一部を再利用するか、必要に応じて最小限で定義
+// import { AxiosRequestConfig } from 'axios'; // これをインポートできるなら一番良い
+type CustomAxiosRequestConfig = {
+  url?: string;
+  method?: string;
+  // ...他の config プロパティが必要なら追加
+  [key: string]: unknown; // それ以外の未知のプロパティは unknown として許容
+};
 
 interface CustomAxiosError extends Error {
   isAxiosError?: boolean;
   response?: AxiosErrorResponse;
-  config?: any; // configはanyでも問題ないことが多い
+  config?: CustomAxiosRequestConfig; // config を any から CustomAxiosRequestConfig に変更
   code?: string;
-  request?: any;
+  request?: XMLHttpRequest | unknown; // request も具体的な型か unknown に変更 (ブラウザ環境ならXMLHttpRequest)
 }
 
 
@@ -68,9 +85,8 @@ export default function PurchaseButton({ cart, setCart }: Props) {
       setTotalAmountExTax(total_amount_ex_tax)
       setShowPopup(true)
       setCart([])
-    } catch (error: unknown) { // any を unknown に変更
-      // エラーが axios のエラーかどうかをより厳密にチェックし、型を定義
-      const isAxiosError = (err: unknown): err is CustomAxiosError => {
+    } catch (error: unknown) {
+      const isCustomAxiosError = (err: unknown): err is CustomAxiosError => {
         return (
           typeof err === 'object' &&
           err !== null &&
@@ -79,14 +95,25 @@ export default function PurchaseButton({ cart, setCart }: Props) {
         );
       };
 
-      if (isAxiosError(error)) { // 型ガードを使用
-        console.error(
-          '購入処理エラー (Axios):',
-          error.response?.data?.message || error.response?.data?.detail || error.message || error
-        );
-      } else if (error instanceof Error) { // 通常のJavaScriptエラーの場合
+      if (isCustomAxiosError(error)) {
+        let errorMessage = '不明なエラーが発生しました';
+        if (typeof error.response?.data === 'string') {
+          errorMessage = error.response.data;
+        } else if (typeof error.response?.data === 'object' && error.response.data !== null) {
+          // FastAPIErrorDetail か FastAPIErrorMessage の場合
+          const errorData = error.response.data;
+          if ('detail' in errorData) {
+            errorMessage = typeof errorData.detail === 'string' 
+                           ? errorData.detail 
+                           : JSON.stringify(errorData.detail); // 配列の場合を考慮
+          } else if ('message' in errorData) {
+            errorMessage = errorData.message;
+          }
+        }
+        console.error('購入処理エラー (Axios):', errorMessage, error); // エラーオブジェクト全体もログに含める
+      } else if (error instanceof Error) {
         console.error('購入処理エラー (Generic Error):', error.message);
-      } else { // その他の不明なエラーの場合
+      } else {
         console.error('購入処理エラー (Unknown Error):', error);
       }
       alert('購入処理に失敗しました')
