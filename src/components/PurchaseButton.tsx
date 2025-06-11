@@ -3,12 +3,29 @@
 import { CartItem } from '@/types'
 import api from '@/lib/api'
 import { Dispatch, SetStateAction, useState } from 'react'
-// import { AxiosError } from 'axios' // この行は削除、またはコメントアウト
 
-// AxiosError の型定義は axios パッケージの型定義に含まれているため、
-// 明示的にインポートする必要はありません。
-// 必要であれば、以下のように定義することもできますが、通常は不要です。
-// import { AxiosError } from 'axios'; // もし axios のバージョンが古くてimportが必要な場合はここを残す
+// AxiosError の型定義を、必要なプロパティだけを持つように定義します。
+// これは @typescript-eslint/no-explicit-any を回避しつつ、Axiosのエラー構造にアクセスするためです。
+interface AxiosErrorResponse {
+  data?: {
+    // FastAPIのエラーレスポンスの具体的な構造に合わせて調整してください
+    // 例えば、{ detail: string } のような形式かもしれません
+    message?: string;
+    detail?: string;
+    // ...その他、エラーレスポンスに含まれる可能性のあるプロパティ
+  };
+  status?: number;
+  // ...その他、レスポンスオブジェクトに含まれる可能性のあるプロパティ
+}
+
+interface CustomAxiosError extends Error {
+  isAxiosError?: boolean;
+  response?: AxiosErrorResponse;
+  config?: any; // configはanyでも問題ないことが多い
+  code?: string;
+  request?: any;
+}
+
 
 type Props = {
   cart: CartItem[]
@@ -44,24 +61,33 @@ export default function PurchaseButton({ cart, setCart }: Props) {
     }
 
     try {
-      const res = await api.post('/purchase', payload)
-      const { total_amount, total_amount_ex_tax } = res.data as PurchaseResponse
+      const res = await api.post<PurchaseResponse>('/purchase', payload)
+      const { total_amount, total_amount_ex_tax } = res.data 
 
       setTotalAmount(total_amount)
       setTotalAmountExTax(total_amount_ex_tax)
       setShowPopup(true)
       setCart([])
     } catch (error: unknown) { // any を unknown に変更
-      // エラーが axios のエラーかどうかを判断
-      // AxiosError の型ガードを使って、型安全にアクセスする
-      if (typeof error === 'object' && error !== null && 'response' in error && 'isAxiosError' in error && (error as any).isAxiosError) {
-        // AxiosError の場合
-        const axiosError = error as any; // ここで any を使うのは、エラー処理内で一時的に許容
-        console.error('購入処理エラー:', axiosError.response?.data || axiosError.message || axiosError);
+      // エラーが axios のエラーかどうかをより厳密にチェックし、型を定義
+      const isAxiosError = (err: unknown): err is CustomAxiosError => {
+        return (
+          typeof err === 'object' &&
+          err !== null &&
+          'isAxiosError' in err &&
+          (err as CustomAxiosError).isAxiosError === true
+        );
+      };
+
+      if (isAxiosError(error)) { // 型ガードを使用
+        console.error(
+          '購入処理エラー (Axios):',
+          error.response?.data?.message || error.response?.data?.detail || error.message || error
+        );
       } else if (error instanceof Error) { // 通常のJavaScriptエラーの場合
-        console.error('購入処理エラー:', error.message);
+        console.error('購入処理エラー (Generic Error):', error.message);
       } else { // その他の不明なエラーの場合
-        console.error('購入処理エラー:', error);
+        console.error('購入処理エラー (Unknown Error):', error);
       }
       alert('購入処理に失敗しました')
     }
