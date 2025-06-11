@@ -3,6 +3,21 @@
 import { CartItem } from '@/types'
 import api from '@/lib/api'
 import { Dispatch, SetStateAction, useState } from 'react'
+// import { AxiosError } from 'axios' // この行は削除、またはコメントアウト
+
+// AxiosError の型定義は axios パッケージの型定義に含まれているため、
+// 明示的にインポートする必要はありません。
+// 必要であれば、以下のように定義することもできますが、通常は不要です。
+// interface AxiosError {
+//   response?: {
+//     data: any;
+//     status: number;
+//     headers: any;
+//   };
+//   message: string;
+//   // 他のAxiosErrorプロパティ...
+// }
+
 
 type Props = {
   cart: CartItem[]
@@ -45,8 +60,16 @@ export default function PurchaseButton({ cart, setCart }: Props) {
       setTotalAmountExTax(total_amount_ex_tax)
       setShowPopup(true)
       setCart([])
-    } catch (error: any) {
-      console.error('購入処理エラー:', error.response?.data || error)
+    } catch (error: unknown) { // any を unknown に変更
+      // エラーが axios のエラーかどうかを判断
+      // error.response は AxiosError のプロパティなので、型ガードを使用
+      if (typeof error === 'object' && error !== null && 'response' in error) {
+        console.error('購入処理エラー:', (error as any).response?.data || (error as any).message || error);
+      } else if (error instanceof Error) { // 通常のJavaScriptエラーの場合
+        console.error('購入処理エラー:', error.message);
+      } else { // その他の不明なエラーの場合
+        console.error('購入処理エラー:', error);
+      }
       alert('購入処理に失敗しました')
     }
   }
@@ -68,7 +91,7 @@ export default function PurchaseButton({ cart, setCart }: Props) {
             left: 0,
             width: '100vw',
             height: '100vh',
-            backgroundColor: 'rgba(0, 0, 0, 0.4)', // ← ここを変更
+            backgroundColor: 'rgba(0, 0, 0, 0.4)',
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',
