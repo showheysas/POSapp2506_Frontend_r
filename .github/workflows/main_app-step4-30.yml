@@ -64,4 +64,4 @@ jobs:
           slot-name: 'Production'
           package: . # .next/standalone が /home/site/wwwroot/ に展開されることを想定
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          startup-command: "node ./.next/standalone/server.js" # Next.js standalone の起動コマンド
+          # startup-command: "node ./.next/standalone/server.js" # この行を削除
